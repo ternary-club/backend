@@ -77,44 +77,8 @@ func getBinariesConfigs() (configs BinariesConfig) {
 	return
 }
 
-// Normalize binary-lock.json
-func TidyBinaryLock() {
-	// Binaries configs
-	configs := getBinariesConfigs()
-	// Final binary lock
-	lock := BinariesLock{}
-	// Check if binary-lock.json exists
-	if exists := checkExists("./binary-lock.json"); exists {
-		// Open JSON file
-		file, err := os.Open("./binary-lock.json")
-		if err != nil {
-			log.Fatal("couldn't open binary-lock.json:", err)
-		}
-		// Read file
-		bytes, err := ioutil.ReadAll(file)
-		if err != nil {
-			log.Fatal("couldn't read binary-lock.json bytes:", err)
-		}
-		// Close reader
-		file.Close()
-		// Unmarshal configs
-		err = json.Unmarshal(bytes, &lock)
-		if err != nil {
-			log.Fatal("couldn't unmarshal binary-lock.json into a valid map of binaries contents lock:", err)
-		}
-	}
-	// Iterate through expected binaries
-	for k, v := range configs {
-		_, ok := lock[k]
-		// If it doesn't find a binary, add it with version 0 to the lock
-		if !ok {
-			lock[k] = BinaryLock{Version: "0"}
-		}
-	}
-}
-
 // Get configuration from file
-func GetBinariesLock() (lock BinariesLock) {
+func openBinariesLockFile() (file *os.File) {
 	// Check if binary-lock.json exists
 	if exists := checkExists("./binary-lock.json"); !exists {
 		return nil
@@ -124,19 +88,62 @@ func GetBinariesLock() (lock BinariesLock) {
 	if err != nil {
 		log.Fatal("couldn't open binary-lock.json:", err)
 	}
-	// Read file
-	bytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		log.Fatal("couldn't read binary-lock.json bytes:", err)
-	}
-	// Close reader
-	file.Close()
-	// Unmarshal configs
-	err = json.Unmarshal(bytes, &lock)
-	if err != nil {
-		log.Fatal("couldn't unmarshal binary-lock.json into a valid map of binaries contents lock:", err)
-	}
 	return
 }
 
-// Download single binary contents
+// Get fully updated binary versions
+func TidyAndGetBinaryLock() (lock BinariesLock) {
+	// Get binary.json content
+	configs := getBinariesConfigs()
+	// Open binary-lock.json
+	lockFile := openBinariesLockFile()
+	// Close binary-lock.json reader when finished
+	defer lockFile.Close()
+	// Create binary-lock.json if doesn't exist
+	if lockFile == nil {
+		var err error
+		// Create binary-lock.json
+		lockFile, err = os.Create("./binary-lock.json")
+		if err != nil {
+			log.Fatal("couldn't create binary-lock.json:", err)
+		}
+	} else {
+		// Read binary-lock.json
+		bytes, err := ioutil.ReadAll(lockFile)
+		if err != nil {
+			log.Fatal("couldn't read binary-lock.json bytes:", err)
+		}
+		// Unmarshal binary-lock.json content
+		err = json.Unmarshal(bytes, &lock)
+		if err != nil {
+			log.Fatal("couldn't unmarshal binary-lock.json into a valid map of binaries version identifiers:", err)
+		}
+	}
+
+	// Iterate through configured binaries to add
+	for k := range configs {
+		_, ok := lock[k]
+		// If it doesn't find a binary in lock, add it with version 0 to the lock
+		if !ok {
+			lock[k] = BinaryLock{Version: "0"}
+		}
+	}
+	// Iterate through locked binaries to remove
+	for k := range lock {
+		_, ok := configs[k]
+		// If it doesn't find a binary in config, remove it from lock
+		if !ok {
+			delete(lock, k)
+		}
+	}
+
+	// Start to override binary-lock.json contents
+	lockFile.Truncate(0)
+	lockFile.Seek(0, 0)
+	// Marshal updated lock
+	bytes, _ := json.Marshal(lock)
+	// Write to binary-lock.json
+	lockFile.Write(bytes)
+
+	return
+}
