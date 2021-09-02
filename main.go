@@ -13,6 +13,9 @@ func main() {
 	SetupCORS(r)
 	SetupRoutes(r)
 
+	// Get binaries config and versions
+	configs := GetBinariesConfigs()
+
 	// Start engine
 	r.Run()
 }
