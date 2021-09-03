@@ -1,16 +1,12 @@
 {
-    "Taylor": {
+    "taylor": {
         "command": "./taylor",
         "repository": "ternary-club/taylor",
-        "content": [
-            "taylor"
-        ]
+        "wipeFiles": true
     },
-    "Terry Compiler": {
+    "terry-c": {
         "command": "./terry-c",
         "repository": "ternary-club/terry-c",
-        "content": [
-            "terry-c"
-        ]
+        "wipeFiles": true
     }
 }

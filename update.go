@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 )
 
 // Check if file or directory exists
@@ -22,25 +21,11 @@ func checkExists(path string) bool {
 	return true
 }
 
-// Get version of specified binary
-func getVersion(path string) (string, error) {
-	if exists := checkExists(path); !exists {
-		return "0", nil
-	} else {
-		out, err := exec.Command(path, "-v").Output()
-		if err != nil {
-			return "0", err
-		} else {
-			return string(out), nil
-		}
-	}
-}
-
 // Individual binary configs
 type BinaryConfig struct {
-	Command    string   `json:"command"`
-	Repository string   `json:"repository"`
-	Content    []string `json:"content"`
+	Command    string `json:"command"`
+	Repository string `json:"repository"`
+	WipeFiles  bool   `json:"wipeFiles"`
 }
 
 // Multiple binaries configs
@@ -86,15 +71,15 @@ func openBinariesLockFile() (file *os.File) {
 	// Open JSON file
 	file, err := os.Open("./binary-lock.json")
 	if err != nil {
-		log.Fatal("couldn't open binary-lock.json:", err)
+		log.Fatalln("couldn't open binary-lock.json:", err)
 	}
 	return
 }
 
-// Get fully updated binary versions
-func TidyAndGetBinaryLock() (lock BinariesLock) {
+// Remove old and add new binaries to binary-lock.json
+func TidyEnvironment() (configs BinariesConfig, lock BinariesLock) {
 	// Get binary.json content
-	configs := getBinariesConfigs()
+	configs = getBinariesConfigs()
 	// Open binary-lock.json
 	lockFile := openBinariesLockFile()
 	// Close binary-lock.json reader when finished
@@ -131,13 +116,18 @@ func TidyAndGetBinaryLock() (lock BinariesLock) {
 	// Iterate through locked binaries to remove
 	for k := range lock {
 		_, ok := configs[k]
-		// If it doesn't find a binary in config, remove it from lock
+		// Check if file is in configs
 		if !ok {
+			// If it isn't, delete it's directory and remove it from lock
+			err := os.Remove(k)
+			if err != nil {
+				fmt.Println("couldn't delete directory", k, "while cleaning binaries:", err)
+			}
 			delete(lock, k)
 		}
 	}
 
-	// Start to override binary-lock.json contents
+	// Rewind reader to override contents
 	lockFile.Truncate(0)
 	lockFile.Seek(0, 0)
 	// Marshal updated lock
