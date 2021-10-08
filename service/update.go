@@ -1,63 +1,54 @@
-package main
+package service
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-)
 
-// Check if file or directory exists
-func checkExists(path string) bool {
-	// Check if file exists
-	_, err := os.Stat(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			fmt.Println("couldn't check stat of", path+":", err)
-		}
-		return false
-	}
-	return true
-}
+	"github.com/ternary-club/backend/utils"
+)
 
 // Individual binary configs
 type BinaryConfig struct {
 	Command    string `json:"command"`
 	Repository string `json:"repository"`
-	WipeFiles  bool   `json:"wipeFiles"`
+	WipeFiles  bool   `json:"wipe_files"`
 }
 
 // Multiple binaries configs
 type BinariesConfig map[string]BinaryConfig
 
-// Individual binary locks
-type BinaryLock struct {
-	Version  string `json:"version"`
-	Checksum string `json:"checksum"`
-}
-
 // Multiple binaries locks
-type BinariesLock map[string]BinaryLock
+type BinariesLock map[string]int64
+
+// Portfolio struct
+type Portfolio struct {
+	Config BinariesConfig
+	Lock   BinariesLock
+}
 
 // Get configuration from file
 func getBinariesConfigs() (configs BinariesConfig) {
 	// Open JSON file
 	file, err := os.Open("./binary.json")
 	if err != nil {
-		log.Fatal("couldn't open binary.json:", err)
+		log.Fatalln("couldn't open binary.json:", err)
 	}
+
 	// Read file
 	bytes, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Fatal("couldn't read binary.json bytes:", err)
+		log.Fatalln("couldn't read binary.json bytes:", err)
 	}
+
 	// Close reader
 	file.Close()
+
 	// Unmarshal configs
 	err = json.Unmarshal(bytes, &configs)
 	if err != nil {
-		log.Fatal("couldn't unmarshal binary.json into a valid map of binaries configurations:", err)
+		log.Fatalln("couldn't unmarshal binary.json into a valid map of binaries configurations:", err)
 	}
 	return
 }
@@ -65,65 +56,73 @@ func getBinariesConfigs() (configs BinariesConfig) {
 // Get configuration from file
 func openBinariesLockFile() (file *os.File) {
 	// Check if binary-lock.json exists
-	if exists := checkExists("./binary-lock.json"); !exists {
+	if exists := utils.Exists("./binary-lock.json"); !exists {
 		return nil
 	}
+
 	// Open JSON file
 	file, err := os.Open("./binary-lock.json")
 	if err != nil {
 		log.Fatalln("couldn't open binary-lock.json:", err)
 	}
+
 	return
 }
 
 // Remove old and add new binaries to binary-lock.json
-func TidyEnvironment() (configs BinariesConfig, lock BinariesLock) {
+func TidyEnvironment() (portfolio Portfolio) {
 	// Get binary.json content
-	configs = getBinariesConfigs()
+	portfolio.Config = getBinariesConfigs()
+	portfolio.Lock = BinariesLock{}
+
 	// Open binary-lock.json
 	lockFile := openBinariesLockFile()
+
 	// Close binary-lock.json reader when finished
 	defer lockFile.Close()
+
 	// Create binary-lock.json if doesn't exist
 	if lockFile == nil {
 		var err error
 		// Create binary-lock.json
 		lockFile, err = os.Create("./binary-lock.json")
 		if err != nil {
-			log.Fatal("couldn't create binary-lock.json:", err)
+			log.Fatalln("couldn't create binary-lock.json:", err)
 		}
 	} else {
 		// Read binary-lock.json
 		bytes, err := ioutil.ReadAll(lockFile)
 		if err != nil {
-			log.Fatal("couldn't read binary-lock.json bytes:", err)
+			log.Fatalln("couldn't read binary-lock.json bytes:", err)
 		}
+
 		// Unmarshal binary-lock.json content
-		err = json.Unmarshal(bytes, &lock)
+		err = json.Unmarshal(bytes, &portfolio.Lock)
 		if err != nil {
-			log.Fatal("couldn't unmarshal binary-lock.json into a valid map of binaries version identifiers:", err)
+			log.Fatalln("couldn't unmarshal binary-lock.json into a valid map of binaries version identifiers:", err)
 		}
 	}
 
 	// Iterate through configured binaries to add
-	for k := range configs {
-		_, ok := lock[k]
+	for k := range portfolio.Config {
+		_, ok := portfolio.Lock[k]
 		// If it doesn't find a binary in lock, add it with version 0 to the lock
 		if !ok {
-			lock[k] = BinaryLock{Version: "0"}
+			portfolio.Lock[k] = 0
 		}
 	}
+
 	// Iterate through locked binaries to remove
-	for k := range lock {
-		_, ok := configs[k]
+	for k := range portfolio.Lock {
+		_, ok := portfolio.Config[k]
 		// Check if file is in configs
 		if !ok {
 			// If it isn't, delete it's directory and remove it from lock
 			err := os.Remove(k)
 			if err != nil {
-				fmt.Println("couldn't delete directory", k, "while cleaning binaries:", err)
+				log.Println("couldn't delete directory", k, "while cleaning binaries:", err)
 			}
-			delete(lock, k)
+			delete(portfolio.Lock, k)
 		}
 	}
 
@@ -131,9 +130,39 @@ func TidyEnvironment() (configs BinariesConfig, lock BinariesLock) {
 	lockFile.Truncate(0)
 	lockFile.Seek(0, 0)
 	// Marshal updated lock
-	bytes, _ := json.Marshal(lock)
+	bytes, _ := json.Marshal(portfolio.Lock)
 	// Write to binary-lock.json
 	lockFile.Write(bytes)
 
 	return
+}
+
+// Update binaries and lock versions
+func (portfolio *Portfolio) Update() bool {
+	// Iterate through locked binaries to update them
+	for k, v := range portfolio.Lock {
+		config := portfolio.Config[k]
+		// Get repository info
+		repoInfo := utils.FetchRepoInfo(config.Repository)
+		if repoInfo == nil {
+			return false
+		}
+
+		// Check versions
+		if v < repoInfo.ID {
+			v = repoInfo.ID
+			if config.WipeFiles && utils.Exists(k) {
+				utils.CopyDirectory(k, k+".lock")
+			} else {
+				if err := utils.CreateIfNotExists(k+".lock", 0755); err != nil {
+					log.Println("couldn't create directory while updating", k)
+					continue
+				}
+			}
+
+			utils.DownloadFromRepo(config.Repository)
+		}
+	}
+
+	return true
 }

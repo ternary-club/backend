@@ -13,6 +13,9 @@ func main() {
 	SetupCORS(r)
 	SetupRoutes(r)
 
+	// Update binaries
+	portfolio := TidyEnvironment()
+
 	// Start engine
 	r.Run()
 }
