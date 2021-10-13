@@ -110,3 +110,11 @@ func CopySymLink(source, dest string) error {
 	}
 	return os.Symlink(link, dest)
 }
+
+func Delete(filePath string) error {
+	err := os.RemoveAll(filePath)
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -76,7 +76,7 @@ func downloadFile(filepath string, url string) error {
 }
 
 // Download latest version of the repository
-func DownloadFromRepo(repo string) bool {
+func DownloadFromRepo(repo string, dir string) bool {
 	// Get repository info
 	repoInfo := FetchRepoInfo(repo)
 	if repoInfo == nil {
@@ -88,14 +88,16 @@ func DownloadFromRepo(repo string) bool {
 		return true
 	}
 
-	// Get repo name
-	path := strings.Split(repo, "/")
-	dirName := path[len(path)-1]
+	// Get repo name if dir name is empty
+	if dir == "" {
+		path := strings.Split(repo, "/")
+		dir = path[len(path)-1]
+	}
 	// Create directory if it doesn't exist
-	if !Exists(dirName + ".lock") {
-		err := CreateIfNotExists(dirName+".lock", 0755)
+	if !Exists(dir) {
+		err := CreateIfNotExists(dir, 0755)
 		if err != nil {
-			log.Println("couldn't create directory", dirName+":", err)
+			log.Println("couldn't create directory \""+dir+"\":", err)
 		}
 	}
 
@@ -110,7 +112,7 @@ func DownloadFromRepo(repo string) bool {
 			}
 			log.Println("downloading", path+"/"+a.Name+"...")
 			wg.Done()
-		}(v, dirName, &wg)
+		}(v, dir, &wg)
 	}
 	wg.Wait()
 	log.Println("finished updating", repo+"!")

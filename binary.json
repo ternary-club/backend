@@ -1,6 +1,9 @@
 {
     "hello-world": {
-        "command": "./hello-world.out",
+        "commands": {
+            "start": "./a.out",
+            "end": "killall a"
+        },
         "repository": "eaemenkkstudios/versioning-test",
         "wipe_files": true
     }

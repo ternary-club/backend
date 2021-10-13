@@ -5,15 +5,23 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/ternary-club/backend/utils"
 )
 
+// Binary commands
+type Commands struct {
+	Start string
+	End   *string
+}
+
 // Individual binary configs
 type BinaryConfig struct {
-	Command    string `json:"command"`
-	Repository string `json:"repository"`
-	WipeFiles  bool   `json:"wipe_files"`
+	Commands   Commands `json:"commands"`
+	Repository string   `json:"repository"`
+	WipeFiles  bool     `json:"wipe_files"`
 }
 
 // Multiple binaries configs
@@ -53,7 +61,7 @@ func getBinariesConfigs() (configs BinariesConfig) {
 	return
 }
 
-// Get configuration from file
+// Get versioning file
 func openBinariesLockFile() (file *os.File) {
 	// Check if binary-lock.json exists
 	if exists := utils.Exists("./binary-lock.json"); !exists {
@@ -61,7 +69,7 @@ func openBinariesLockFile() (file *os.File) {
 	}
 
 	// Open JSON file
-	file, err := os.Open("./binary-lock.json")
+	file, err := os.OpenFile("./binary-lock.json", os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		log.Fatalln("couldn't open binary-lock.json:", err)
 	}
@@ -77,7 +85,6 @@ func TidyEnvironment() (portfolio Portfolio) {
 
 	// Open binary-lock.json
 	lockFile := openBinariesLockFile()
-
 	// Close binary-lock.json reader when finished
 	defer lockFile.Close()
 
@@ -130,7 +137,7 @@ func TidyEnvironment() (portfolio Portfolio) {
 	lockFile.Truncate(0)
 	lockFile.Seek(0, 0)
 	// Marshal updated lock
-	bytes, _ := json.Marshal(portfolio.Lock)
+	bytes, _ := json.MarshalIndent(portfolio.Lock, "", "    ")
 	// Write to binary-lock.json
 	lockFile.Write(bytes)
 
@@ -139,8 +146,18 @@ func TidyEnvironment() (portfolio Portfolio) {
 
 // Update binaries and lock versions
 func (portfolio *Portfolio) Update() bool {
+	// Get root working directory
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+
 	// Iterate through locked binaries to update them
 	for k, v := range portfolio.Lock {
+		// Open working directory
+		os.Chdir(exPath)
+		// Get config
 		config := portfolio.Config[k]
 		// Get repository info
 		repoInfo := utils.FetchRepoInfo(config.Repository)
@@ -150,19 +167,78 @@ func (portfolio *Portfolio) Update() bool {
 
 		// Check versions
 		if v < repoInfo.ID {
-			v = repoInfo.ID
-			if config.WipeFiles && utils.Exists(k) {
-				utils.CopyDirectory(k, k+".lock")
+			// Update version
+			portfolio.Lock[k] = repoInfo.ID
+			// Create new directory
+			newDir := k + "-lock"
+			if !config.WipeFiles && utils.Exists(k) {
+				utils.CopyDirectory(k, newDir)
 			} else {
-				if err := utils.CreateIfNotExists(k+".lock", 0755); err != nil {
-					log.Println("couldn't create directory while updating", k)
+				if err := utils.CreateIfNotExists(newDir, 0755); err != nil {
+					log.Println("couldn't create directory of", k+":", err)
 					continue
 				}
 			}
 
-			utils.DownloadFromRepo(config.Repository)
+			// Update binaries
+			utils.DownloadFromRepo(config.Repository, newDir)
+
+			// End running service
+			if config.Commands.End != nil {
+				cmd := exec.Command(*config.Commands.End)
+				stdout, err := cmd.Output()
+				if err != nil {
+					log.Println("couldn't end service", k+":", err)
+				} else {
+					log.Println("service", k, "ended with output:", stdout)
+				}
+			}
+
+			// Delete old directory
+			err := utils.Delete(k)
+			if err != nil {
+				log.Println("couldn't delete previous directory of", k+":", err)
+				log.Println("trying to reinitialize", k+"...")
+			} else {
+				err = os.Rename(newDir, k)
+				if err != nil {
+					log.Println("couldn't rename", newDir, "to", k)
+					continue
+				}
+			}
+
+			// Open dir
+			os.Chdir(k)
+			_, err = os.Getwd()
+			if err != nil {
+				log.Println("couldn't open directory", k+":", err)
+				continue
+			}
+
+			// Start service
+			cmd := exec.Command(config.Commands.Start)
+			stdout, err := cmd.Output()
+			if err != nil {
+				log.Println("couldn't start service", k+":", err)
+			} else {
+				log.Println("service", k, "started with output:", stdout)
+			}
 		}
 	}
+
+	// Open working directory
+	os.Chdir(exPath)
+	// Marshal updated lock
+	bytes, _ := json.MarshalIndent(portfolio.Lock, "", "    ")
+	// Open binary-lock.json
+	lockFile := openBinariesLockFile()
+	// Rewind reader to override contents
+	lockFile.Truncate(0)
+	lockFile.Seek(0, 0)
+	// Write to binary-lock.json
+	_, err = lockFile.Write(bytes)
+	// Close binary-lock.json reader when finished
+	lockFile.Close()
 
 	return true
 }
