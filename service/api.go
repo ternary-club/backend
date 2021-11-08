@@ -25,7 +25,7 @@ func SetupCORS(r *gin.Engine) {
 // Setup playground routes
 func SetupRoutes(r *gin.Engine) {
 	r.POST("/", func(c *gin.Context) {
-		// Request struct for body unmarshaling
+		// Struct for body unmarshaling
 		type request struct{ Src []string }
 		// Unmarshal body
 		var body request

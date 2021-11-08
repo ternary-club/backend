@@ -19,7 +19,7 @@ type asset struct {
 
 // Repo information response
 type RepoInfo struct {
-	ID     int64   `json:"id"`
+	ID     uint64  `json:"id"`
 	Assets []asset `json:"assets"`
 }
 
@@ -28,7 +28,10 @@ func FetchRepoInfo(repo string) *RepoInfo {
 	// Build URL
 	url := fmt.Sprintf("https://api.github.com/repos/" + repo + "/releases/latest")
 	// Send request
-	req, _ := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Println("couldn't make request", url+":", err)
+	}
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -95,7 +98,7 @@ func DownloadFromRepo(repo string, dir string) bool {
 	}
 	// Create directory if it doesn't exist
 	if !Exists(dir) {
-		err := CreateIfNotExists(dir, 0755)
+		err := os.MkdirAll(dir, 0755)
 		if err != nil {
 			log.Println("couldn't create directory \""+dir+"\":", err)
 		}

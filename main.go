@@ -15,8 +15,7 @@ func main() {
 	service.SetupRoutes(r)
 
 	// Update binaries
-	portfolio := service.TidyEnvironment()
-	portfolio.Update()
+	service.Update()
 
 	// Start engine
 	r.Run()
