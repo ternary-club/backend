@@ -60,7 +60,7 @@ func byteToHepta(num byte) byte {
 // Setup playground routes
 func SetupRoutes(r *gin.Engine) {
 	// Get repositories
-	r.GET("/repo", func(c *gin.Context) {
+	r.GET("/", func(c *gin.Context) {
 		keys := []string{}
 		for k := range repos {
 			keys = append(keys, k)
@@ -68,7 +68,7 @@ func SetupRoutes(r *gin.Engine) {
 		c.JSON(http.StatusOK, gin.H{"repos": keys})
 	})
 	// Get repository files
-	r.GET("/repo/:repo", func(c *gin.Context) {
+	r.GET("/:repo", func(c *gin.Context) {
 		repo, ok := repos[c.Param("repo")]
 		if ok {
 			c.JSON(http.StatusOK, repo)
@@ -77,7 +77,7 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Send repository files
-	r.POST("/repo/:repo", func(c *gin.Context) {
+	r.POST("/:repo", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
@@ -101,7 +101,7 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Compile
-	r.POST("/repo/:repo/compile", func(c *gin.Context) {
+	r.POST("/:repo/compile", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
@@ -152,7 +152,7 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Run
-	r.POST("/repo/:repo/run", func(c *gin.Context) {
+	r.POST("/:repo/run", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
@@ -164,7 +164,7 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Update repository info
-	r.PATCH("/repo/:repo", func(c *gin.Context) {
+	r.PATCH("/:repo", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
@@ -187,10 +187,14 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Create repository
-	r.PUT("/repo/:repo", func(c *gin.Context) {
+	r.PUT("/:repo", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if !ok {
+			if strings.Trim(repo, " ") == "" {
+				c.JSON(http.StatusConflict, gin.H{"error": "invalid repository name"})
+				return
+			}
 			repos[repo] = Repository{}
 			c.Status(http.StatusOK)
 		} else {
@@ -198,7 +202,7 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	})
 	// Delete repository
-	r.DELETE("/repo/:repo", func(c *gin.Context) {
+	r.DELETE("/:repo", func(c *gin.Context) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
