@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/ternary-club/backend/service"
 )
 
 // Initialization
@@ -11,11 +10,8 @@ func main() {
 	r := gin.Default()
 
 	// Setup API
-	service.SetupCORS(r)
-	service.SetupRoutes(r)
-
-	// Update binaries
-	service.Update()
+	SetupCORS(r)
+	SetupRoutes(r)
 
 	// Start engine
 	r.Run()

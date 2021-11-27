@@ -1,4 +1,4 @@
-module github.com/ternary-club/backend
+module github.com/ternary-club/playground-backend
 
 go 1.16
 
