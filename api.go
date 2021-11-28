@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/stoewer/go-strcase"
 )
 
 // Set CORS permissions
@@ -69,7 +70,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Get repository files
 	r.GET("/:repo", func(c *gin.Context) {
-		repo, ok := repos[c.Param("repo")]
+		repo, ok := repos[strcase.KebabCase(strings.ToLower(c.Param("repo")))]
 		if ok {
 			c.JSON(http.StatusOK, repo)
 		} else {
@@ -78,7 +79,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Send repository files
 	r.POST("/:repo", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if ok {
 			type Body struct {
@@ -102,7 +103,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Compile
 	r.POST("/:repo/compile", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if ok {
 			time.Sleep(1 * time.Second)
@@ -158,7 +159,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Run
 	r.POST("/:repo/run", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if ok {
 			time.Sleep(1 * time.Second)
@@ -170,7 +171,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Update repository info
 	r.PATCH("/:repo", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if ok {
 			if name := c.Query("name"); name != "" {
@@ -190,10 +191,10 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Create repository
 	r.PUT("/:repo", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if !ok {
-			if strings.Trim(repo, " ") == "" {
+			if repo == "" {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repository name"})
 				return
 			}
@@ -205,7 +206,7 @@ func SetupRoutes(r *gin.Engine) {
 	})
 	// Delete repository
 	r.DELETE("/:repo", func(c *gin.Context) {
-		repo := c.Param("repo")
+		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
 		_, ok := repos[repo]
 		if ok {
 			delete(repos, repo)
