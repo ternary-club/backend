@@ -174,8 +174,14 @@ func SetupRoutes(r *gin.Engine) {
 		_, ok := repos[repo]
 		if ok {
 			if name := c.Query("name"); name != "" {
-				repos[name] = repos[repo]
-				delete(repos, repo)
+				_, ok := repos[name]
+				if ok {
+					c.JSON(http.StatusConflict, gin.H{"error": "repository already exists"})
+					return
+				} else {
+					repos[name] = repos[repo]
+					delete(repos, repo)
+				}
 			}
 			c.Status(http.StatusOK)
 		} else {
@@ -188,7 +194,7 @@ func SetupRoutes(r *gin.Engine) {
 		_, ok := repos[repo]
 		if !ok {
 			if strings.Trim(repo, " ") == "" {
-				c.JSON(http.StatusConflict, gin.H{"error": "invalid repository name"})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repository name"})
 				return
 			}
 			repos[repo] = Repository{}
