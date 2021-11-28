@@ -128,7 +128,7 @@ func SetupRoutes(r *gin.Engine) {
 				return
 			}
 
-			if c.Query("compile") == "false" {
+			if c.Query("errorOnly") == "true" {
 				c.Status(http.StatusOK)
 				return
 			}
