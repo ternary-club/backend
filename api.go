@@ -37,7 +37,7 @@ type Repository struct {
 type Error struct {
 	Row     uint   `json:"row"`
 	Column  uint   `json:"column"`
-	Message string `json:"molumn"`
+	Message string `json:"message"`
 }
 
 var repos = map[string]Repository{}
