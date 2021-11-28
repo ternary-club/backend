@@ -128,6 +128,11 @@ func SetupRoutes(r *gin.Engine) {
 				return
 			}
 
+			if c.Query("compile") == "true" {
+				c.Status(http.StatusOK)
+				return
+			}
+
 			tryteCount := rand.Intn(10) + 1
 			trits := make([]byte, tryteCount*3)
 			crand.Read(trits)
@@ -168,19 +173,10 @@ func SetupRoutes(r *gin.Engine) {
 		repo := c.Param("repo")
 		_, ok := repos[repo]
 		if ok {
-			type Body struct {
-				Name string `json:"name"`
+			if name := c.Query("name"); name != "" {
+				repos[name] = repos[repo]
+				delete(repos, repo)
 			}
-			body := Body{}
-
-			err := c.Bind(&body)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-				return
-			}
-
-			repos[body.Name] = repos[repo]
-			delete(repos, repo)
 			c.Status(http.StatusOK)
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"error": "repository does not exist"})
