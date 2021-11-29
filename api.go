@@ -1,11 +1,13 @@
 package main
 
 import (
-	crand "crypto/rand"
 	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,55 +106,27 @@ func SetupRoutes(r *gin.Engine) {
 	// Compile
 	r.POST("/:repo/compile", func(c *gin.Context) {
 		repo := strcase.KebabCase(strings.ToLower(c.Param("repo")))
-		_, ok := repos[repo]
+		r, ok := repos[repo]
 		if ok {
-			time.Sleep(1 * time.Second)
-			if rand.Float32() > .9 {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"problems": []Error{
-						{
-							Row:     1,
-							Column:  2,
-							Message: "ugly assertion detected",
-						},
-						{
-							Row:     4,
-							Column:  3,
-							Message: "cannot use kek that way",
-						},
-						{
-							Row:     5,
-							Column:  8,
-							Message: "variable is not poggers",
-						},
-					}})
-				return
+
+			f, _ := os.OpenFile(repo+".try", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+			f.Truncate(0)
+			f.Seek(0, 0)
+			fmt.Fprintf(f, "%s", []byte(r.Try))
+			f.Close()
+
+			out, _ := exec.Command("./terry", "eae.try").Output()
+
+			errors := strings.Split(string(out), "\n")
+			problems := []Error{}
+			for _, e := range errors[:len(errors)-1] {
+				data := strings.Split(e, ":")
+				row, _ := strconv.Atoi(data[1])
+				column, _ := strconv.Atoi(data[2])
+				problems = append(problems, Error{Row: uint(row), Column: uint(column), Message: strings.Split(e, "[0m ")[1]})
 			}
 
-			if c.Query("errorOnly") == "true" {
-				c.Status(http.StatusOK)
-				return
-			}
-
-			tryteCount := rand.Intn(10) + 1
-			trits := make([]byte, tryteCount*3)
-			crand.Read(trits)
-
-			trytes := make([]string, tryteCount)
-			for i := range trytes {
-				trytes[i] += string(byteToHepta(trits[i*3+0]))
-				trytes[i] += string(byteToHepta(trits[i*3+1]))
-				trytes[i] += string(byteToHepta(trits[i*3+2]))
-			}
-
-			ternary := strings.Join(trytes, "\n")
-			fmt.Println(ternary)
-
-			newRepo := repos[repo]
-			newRepo.Ter = ternary
-			repos[repo] = newRepo
-
-			c.JSON(http.StatusOK, gin.H{".ter": ternary})
+			c.JSON(http.StatusOK, gin.H{"problems": problems})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"error": "repository does not exist"})
 		}
